@@ -1,0 +1,9 @@
+{
+  "external-dns-secret": "aa0173b93b1375ab014d09687d0f7d9fc5278db854be914abf04379d5ab25ef3",
+  "git-sync-credentials-secret": "9878a97348d512dcd4c726e48a67e7a9f05b0a9663dbff73634e3c7a7c5f6738",
+  "postgresql-connection-string-secret": "0e1c760d5b1f0fa71208183ed31a42e5ca2cbf0ffabb0961694db951428a4b10",
+  "airflow-fernet-key-secret": "344c7f3920e0ebb7a2492f1276556c00bc22c814c52b05fe37408c9d8140b477",
+  "airflow-webserver-key-secret": "8d68ff06ce27aa0625bd19334f9ac3eccfee29811b6fbddf9d3e0e4825dd1a90",
+  "cnpg-cluster-superuser-auth-secret": "054840fbb8b16727605528077c0cd0b2487e90a32d2eb8ba866023b4937463dd",
+  "cnpg-database-user-auth-secret": "431caa7f2266b2cc4fb6d53b77f5409e6b9210998051164ce13f9fa6d0610085"
+}

@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx-public
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    name: ingress-nginx-public
+spec:
+  project: default
+  source:
+    repoURL: 'https://kubernetes.github.io/ingress-nginx'
+    chart: ingress-nginx
+    helm:
+      version: v3
+      values: |
+        tcp: {}
+        controller:
+          electionID: public-controller-leader
+          ingressClassResource:
+            enabled: 'true'
+            name: public
+            default: 'false'
+            controllerValue: k8s.io/ingress-nginx-public
+          service:
+            annotations:
+              service.beta.kubernetes.io/aws-load-balancer-type: nlb
+              service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: CNDIProject=airflow-shiva
+    targetRevision: 4.12.1
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: ingress-public
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - Validate=false
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=false
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 4m

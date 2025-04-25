@@ -1,0 +1,746 @@
+{
+  "//": {
+    "metadata": {
+      "backend": "local",
+      "stackName": ".",
+      "version": "0.20.11"
+    },
+    "outputs": {
+      ".": {
+        "get_argocd_port_forward_command": "get_argocd_port_forward_command",
+        "get_kubeconfig_command": "get_kubeconfig_command",
+        "resource_group_url": "resource_group_url"
+      }
+    }
+  },
+  "data": {
+    "aws_availability_zones": {
+      "available-zones": {
+        "//": {
+          "metadata": {
+            "path": "./available-zones",
+            "uniqueId": "available-zones"
+          }
+        },
+        "filter": [
+          {
+            "name": "opt-in-status",
+            "values": [
+              "opt-in-not-required"
+            ]
+          }
+        ],
+        "state": "available"
+      }
+    },
+    "aws_iam_policy": {
+      "ebs_csi_policy": {
+        "//": {
+          "metadata": {
+            "path": "./ebs_csi_policy",
+            "uniqueId": "ebs_csi_policy"
+          }
+        },
+        "arn": "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+      },
+      "efs_csi_policy": {
+        "//": {
+          "metadata": {
+            "path": "./efs_csi_policy",
+            "uniqueId": "efs_csi_policy"
+          }
+        },
+        "arn": "arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"
+      }
+    }
+  },
+  "locals": {
+    "aws_region": "us-east-1",
+    "bootstrap_token": "${random_password.cndi_join_token.result}",
+    "cluster_name": "${local.cndi_project_name}",
+    "cndi_project_name": "airflow-shiva"
+  },
+  "module": {
+    "cndi_aws_eks_module": {
+      "//": {
+        "metadata": {
+          "path": "./cndi_aws_eks_module",
+          "uniqueId": "cndi_aws_eks_module"
+        }
+      },
+      "cluster_addons": {
+        "aws-ebs-csi-driver": {
+          "mostRecent": true,
+          "serviceAccountRoleArn": "${module.cndi_aws_iam_assumable_role_ebs_with_oidc.iam_role_arn}"
+        },
+        "aws-efs-csi-driver": {
+          "mostRecent": true,
+          "serviceAccountRoleArn": "${module.cndi_aws_iam_assumable_role_efs_with_oidc.iam_role_arn}"
+        }
+      },
+      "cluster_endpoint_public_access": true,
+      "cluster_name": "${local.cluster_name}",
+      "cluster_version": "1.31",
+      "depends_on": [
+        "module.cndi_aws_vpc_module"
+      ],
+      "enable_cluster_creator_admin_permissions": true,
+      "source": "git::https://github.com/terraform-aws-modules/terraform-aws-eks.git?ref=a713f6f464eb579a39918f60f130a5fbb77a6b30",
+      "subnet_ids": "${module.cndi_aws_vpc_module.private_subnets}",
+      "vpc_id": "${module.cndi_aws_vpc_module.vpc_id}"
+    },
+    "cndi_aws_iam_assumable_role_ebs_with_oidc": {
+      "//": {
+        "metadata": {
+          "path": "./cndi_aws_iam_assumable_role_ebs_with_oidc",
+          "uniqueId": "cndi_aws_iam_assumable_role_ebs_with_oidc"
+        }
+      },
+      "create_role": true,
+      "oidc_fully_qualified_subjects": [
+        "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+      ],
+      "provider_url": "${module.cndi_aws_eks_module.oidc_provider}",
+      "role_name": "AmazonEKSTFEBSCSIRole-${local.cluster_name}",
+      "role_policy_arns": [
+        "${data.aws_iam_policy.ebs_csi_policy.arn}"
+      ],
+      "source": "git::https://github.com/terraform-aws-modules/terraform-aws-iam.git//modules/iam-assumable-role-with-oidc?ref=e803e25ce20a6ebd5579e0896f657fa739f6f03e"
+    },
+    "cndi_aws_iam_assumable_role_efs_with_oidc": {
+      "//": {
+        "metadata": {
+          "path": "./cndi_aws_iam_assumable_role_efs_with_oidc",
+          "uniqueId": "cndi_aws_iam_assumable_role_efs_with_oidc"
+        }
+      },
+      "create_role": true,
+      "oidc_fully_qualified_subjects": [
+        "system:serviceaccount:kube-system:efs-csi-controller-sa"
+      ],
+      "provider_url": "${module.cndi_aws_eks_module.oidc_provider}",
+      "role_name": "AmazonEKSTFEFSCSIRole-${local.cluster_name}",
+      "role_policy_arns": [
+        "${data.aws_iam_policy.efs_csi_policy.arn}"
+      ],
+      "source": "git::https://github.com/terraform-aws-modules/terraform-aws-iam.git//modules/iam-assumable-role-with-oidc?ref=e803e25ce20a6ebd5579e0896f657fa739f6f03e"
+    },
+    "cndi_aws_vpc_module": {
+      "//": {
+        "metadata": {
+          "path": "./cndi_aws_vpc_module",
+          "uniqueId": "cndi_aws_vpc_module"
+        }
+      },
+      "azs": "${data.aws_availability_zones.available-zones.names}",
+      "cidr": "10.0.0.0/16",
+      "create_vpc": true,
+      "enable_dns_hostnames": true,
+      "enable_nat_gateway": true,
+      "name": "cndi-vpc_${local.cndi_project_name}",
+      "private_subnet_tags": {
+        "kubernetes.io/cluster/${local.cndi_project_name}": "owned",
+        "kubernetes.io/role/internal-elb": "1"
+      },
+      "private_subnets": [
+        "10.0.0.0/23",
+        "10.0.2.0/23",
+        "10.0.4.0/23"
+      ],
+      "public_subnet_tags": {
+        "kubernetes.io/cluster/${local.cndi_project_name}": "owned",
+        "kubernetes.io/role/elb": "1"
+      },
+      "public_subnets": [
+        "10.0.6.0/23",
+        "10.0.8.0/23",
+        "10.0.10.0/23"
+      ],
+      "single_nat_gateway": true,
+      "source": "git::https://github.com/terraform-aws-modules/terraform-aws-vpc.git?ref=573f574c922782bc658f05523d0c902a4792b0a8"
+    }
+  },
+  "output": {
+    "get_argocd_port_forward_command": {
+      "value": "kubectl port-forward svc/argocd-server -n argocd 8080:443"
+    },
+    "get_kubeconfig_command": {
+      "value": "aws eks update-kubeconfig --region ${local.aws_region} --name ${local.cluster_name}"
+    },
+    "resource_group_url": {
+      "value": "https://${local.aws_region}.console.aws.amazon.com/resource-groups/group/cndi-rg_${local.cndi_project_name}"
+    }
+  },
+  "provider": {
+    "aws": [
+      {
+        "default_tags": [
+          {
+            "tags": {
+              "CNDIProject": "${local.cndi_project_name}",
+              "CNDIVersion": "v2"
+            }
+          }
+        ],
+        "region": "${local.aws_region}"
+      }
+    ],
+    "helm": [
+      {
+        "kubernetes": {
+          "cluster_ca_certificate": "${base64decode(module.cndi_aws_eks_module.cluster_certificate_authority_data)}",
+          "exec": {
+            "api_version": "client.authentication.k8s.io/v1beta1",
+            "args": [
+              "eks",
+              "get-token",
+              "--cluster-name",
+              "${module.cndi_aws_eks_module.cluster_name}"
+            ],
+            "command": "aws"
+          },
+          "host": "${module.cndi_aws_eks_module.cluster_endpoint}"
+        }
+      }
+    ],
+    "kubernetes": [
+      {
+        "cluster_ca_certificate": "${base64decode(module.cndi_aws_eks_module.cluster_certificate_authority_data)}",
+        "exec": [
+          {
+            "api_version": "client.authentication.k8s.io/v1beta1",
+            "args": [
+              "eks",
+              "get-token",
+              "--cluster-name",
+              "${module.cndi_aws_eks_module.cluster_name}"
+            ],
+            "command": "aws"
+          }
+        ],
+        "host": "${module.cndi_aws_eks_module.cluster_endpoint}"
+      }
+    ],
+    "random": [
+      {}
+    ],
+    "time": [
+      {}
+    ],
+    "tls": [
+      {}
+    ]
+  },
+  "resource": {
+    "aws_efs_access_point": {
+      "cndi_aws_efs_access_point": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_efs_access_point",
+            "uniqueId": "cndi_aws_efs_access_point"
+          }
+        },
+        "file_system_id": "${aws_efs_file_system.cndi_aws_efs_file_system.id}",
+        "posix_user": {
+          "gid": 1000,
+          "uid": 1000
+        },
+        "root_directory": {
+          "path": "/efs"
+        },
+        "tags": {
+          "Name": "cndi-elastic-file-system-access-point_${local.cndi_project_name}"
+        }
+      }
+    },
+    "aws_efs_file_system": {
+      "cndi_aws_efs_file_system": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_efs_file_system",
+            "uniqueId": "cndi_aws_efs_file_system"
+          }
+        },
+        "creation_token": "cndi_aws_efs_token_for_${local.cndi_project_name}",
+        "encrypted": true,
+        "tags": {
+          "Name": "cndi-elastic-file-system_${local.cndi_project_name}"
+        }
+      }
+    },
+    "aws_efs_mount_target": {
+      "cndi_aws_efs_mount_target_0": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_efs_mount_target_0",
+            "uniqueId": "cndi_aws_efs_mount_target_0"
+          }
+        },
+        "file_system_id": "${aws_efs_file_system.cndi_aws_efs_file_system.id}",
+        "security_groups": [
+          "${module.cndi_aws_eks_module.cluster_primary_security_group_id}"
+        ],
+        "subnet_id": "${element(module.cndi_aws_vpc_module.private_subnets, 0)}"
+      },
+      "cndi_aws_efs_mount_target_1": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_efs_mount_target_1",
+            "uniqueId": "cndi_aws_efs_mount_target_1"
+          }
+        },
+        "file_system_id": "${aws_efs_file_system.cndi_aws_efs_file_system.id}",
+        "security_groups": [
+          "${module.cndi_aws_eks_module.cluster_primary_security_group_id}"
+        ],
+        "subnet_id": "${element(module.cndi_aws_vpc_module.private_subnets, 1)}"
+      },
+      "cndi_aws_efs_mount_target_2": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_efs_mount_target_2",
+            "uniqueId": "cndi_aws_efs_mount_target_2"
+          }
+        },
+        "file_system_id": "${aws_efs_file_system.cndi_aws_efs_file_system.id}",
+        "security_groups": [
+          "${module.cndi_aws_eks_module.cluster_primary_security_group_id}"
+        ],
+        "subnet_id": "${element(module.cndi_aws_vpc_module.private_subnets, 2)}"
+      }
+    },
+    "aws_eks_node_group": {
+      "cndi_aws_eks_managed_node_group_0": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_eks_managed_node_group_0",
+            "uniqueId": "cndi_aws_eks_managed_node_group_0"
+          }
+        },
+        "ami_type": "AL2023_x86_64_NVIDIA",
+        "capacity_type": "ON_DEMAND",
+        "cluster_name": "${module.cndi_aws_eks_module.cluster_name}",
+        "depends_on": [
+          "aws_iam_role_policy_attachment.cndi_aws_iam_role_policy_attachment_ebs_efs",
+          "aws_iam_role_policy_attachment.cndi_aws_iam_role_policy_attachment_eks_worker_node_policy",
+          "aws_iam_role_policy_attachment.cndi_aws_iam_role_policy_attachment_eks_cni_policy",
+          "aws_iam_role_policy_attachment.cndi_aws_iam_role_policy_attachment_ec2_container_registry_readonly",
+          "aws_launch_template.cndi_aws_launch_template_0"
+        ],
+        "instance_types": [
+          "t3.large"
+        ],
+        "labels": {},
+        "launch_template": {
+          "id": "${aws_launch_template.cndi_aws_launch_template_0.id}",
+          "version": "${aws_launch_template.cndi_aws_launch_template_0.latest_version}"
+        },
+        "node_group_name": "x-node-group",
+        "node_role_arn": "${aws_iam_role.cndi_iam_role_compute.arn}",
+        "scaling_config": {
+          "desired_size": 3,
+          "max_size": 3,
+          "min_size": 3
+        },
+        "subnet_ids": "${module.cndi_aws_vpc_module.private_subnets}",
+        "tags": {
+          "CNDIProject": "${local.cndi_project_name}",
+          "Name": "cndi-eks-node-group-x-node-group"
+        },
+        "taint": []
+      }
+    },
+    "aws_iam_policy": {
+      "cndi_aws_iam_policy_ebs_efs": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_iam_policy_ebs_efs",
+            "uniqueId": "cndi_aws_iam_policy_ebs_efs"
+          }
+        },
+        "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"ec2:CreateVolume\",\"ec2:AttachVolume\",\"ec2:DetachVolume\",\"ec2:ModifyVolume\",\"ec2:DeleteVolume\",\"ec2:DescribeVolumes\",\"ec2:DescribeVolumeStatus\",\"ec2:DescribeTags\",\"ec2:CreateTags\",\"ec2:DeleteTags\",\"ec2:CreateSnapshot\",\"ec2:DeleteSnapshot\",\"ec2:DescribeSnapshots\",\"ec2:ModifySnapshotAttribute\",\"ec2:CopySnapshot\",\"ec2:CreateTags\",\"ec2:DescribeTags\",\"ec2:DescribeAvailabilityZones\",\"ec2:CreateSnapshot\",\"ec2:AttachVolume\",\"ec2:DetachVolume\",\"ec2:ModifyVolume\",\"ec2:DescribeInstances\",\"ec2:DescribeVolumesModifications\",\"elasticfilesystem:CreateAccessPoint\",\"elasticfilesystem:DeleteAccessPoint\",\"elasticfilesystem:DescribeAccessPoints\",\"elasticfilesystem:CreateFileSystem\",\"elasticfilesystem:DeleteFileSystem\",\"elasticfilesystem:DescribeFileSystems\",\"elasticfilesystem:CreateMountTarget\",\"elasticfilesystem:DeleteMountTarget\",\"elasticfilesystem:DescribeMountTargets\",\"elasticfilesystem:ModifyMountTargetSecurityGroups\",\"elasticfilesystem:DescribeMountTargetSecurityGroups\",\"elasticfilesystem:TagResource\",\"elasticfilesystem:ClientWrite\",\"elasticfilesystem:DescribeTags\"],\"Resource\":\"*\"}]}"
+      }
+    },
+    "aws_iam_role": {
+      "cndi_iam_role_compute": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_iam_role_compute",
+            "uniqueId": "cndi_iam_role_compute"
+          }
+        },
+        "assume_role_policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"sts:AssumeRole\",\"Principal\":{\"Service\":\"ec2.amazonaws.com\"}}]}",
+        "name_prefix": "COMPUTE"
+      }
+    },
+    "aws_iam_role_policy_attachment": {
+      "cndi_aws_iam_role_policy_attachment_ebs_efs": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_iam_role_policy_attachment_ebs_efs",
+            "uniqueId": "cndi_aws_iam_role_policy_attachment_ebs_efs"
+          }
+        },
+        "policy_arn": "${aws_iam_policy.cndi_aws_iam_policy_ebs_efs.arn}",
+        "role": "${aws_iam_role.cndi_iam_role_compute.name}"
+      },
+      "cndi_aws_iam_role_policy_attachment_ec2_container_registry_readonly": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_iam_role_policy_attachment_ec2_container_registry_readonly",
+            "uniqueId": "cndi_aws_iam_role_policy_attachment_ec2_container_registry_readonly"
+          }
+        },
+        "policy_arn": "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+        "role": "${aws_iam_role.cndi_iam_role_compute.name}"
+      },
+      "cndi_aws_iam_role_policy_attachment_eks_cni_policy": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_iam_role_policy_attachment_eks_cni_policy",
+            "uniqueId": "cndi_aws_iam_role_policy_attachment_eks_cni_policy"
+          }
+        },
+        "policy_arn": "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+        "role": "${aws_iam_role.cndi_iam_role_compute.name}"
+      },
+      "cndi_aws_iam_role_policy_attachment_eks_worker_node_policy": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_iam_role_policy_attachment_eks_worker_node_policy",
+            "uniqueId": "cndi_aws_iam_role_policy_attachment_eks_worker_node_policy"
+          }
+        },
+        "policy_arn": "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+        "role": "${aws_iam_role.cndi_iam_role_compute.name}"
+      }
+    },
+    "aws_launch_template": {
+      "cndi_aws_launch_template_0": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_launch_template_0",
+            "uniqueId": "cndi_aws_launch_template_0"
+          }
+        },
+        "block_device_mappings": [
+          {
+            "device_name": "/dev/xvda",
+            "ebs": {
+              "volume_size": 100
+            }
+          }
+        ],
+        "depends_on": [
+          "aws_iam_role_policy_attachment.cndi_aws_iam_role_policy_attachment_eks_worker_node_policy",
+          "aws_iam_role_policy_attachment.cndi_aws_iam_role_policy_attachment_ebs_efs",
+          "aws_iam_role_policy_attachment.cndi_aws_iam_role_policy_attachment_eks_cni_policy",
+          "aws_iam_role_policy_attachment.cndi_aws_iam_role_policy_attachment_ec2_container_registry_readonly"
+        ],
+        "metadata_options": {
+          "http_put_response_hop_limit": 2,
+          "http_tokens": "required"
+        },
+        "name_prefix": "cndi-x-node-group-0-",
+        "tag_specifications": [
+          {
+            "resource_type": "instance",
+            "tags": {
+              "CNDIProject": "${local.cndi_project_name}",
+              "Name": "cndi-eks-node-group-x-node-group"
+            }
+          }
+        ]
+      }
+    },
+    "aws_resourcegroups_group": {
+      "cndi_aws_resource_group": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_aws_resource_group",
+            "uniqueId": "cndi_aws_resource_group"
+          }
+        },
+        "name": "cndi-rg_${local.cndi_project_name}",
+        "resource_query": {
+          "query": "{\"ResourceTypeFilters\":[\"AWS::AllSupported\"],\"TagFilters\":[{\"Key\":\"CNDIProject\",\"Values\":[\"${local.cndi_project_name}\"]}]}"
+        },
+        "tags": {
+          "Name": "cndi-rg_${local.cndi_project_name}"
+        }
+      }
+    },
+    "helm_release": {
+      "cndi_helm_release_argocd": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_helm_release_argocd",
+            "uniqueId": "cndi_helm_release_argocd"
+          }
+        },
+        "atomic": true,
+        "chart": "argo-cd",
+        "cleanup_on_fail": true,
+        "create_namespace": true,
+        "depends_on": [
+          "module.cndi_aws_eks_module",
+          "aws_eks_node_group.cndi_aws_eks_managed_node_group_0"
+        ],
+        "name": "argocd",
+        "namespace": "argocd",
+        "replace": true,
+        "repository": "https://argoproj.github.io/argo-helm",
+        "set": [
+          {
+            "name": "server.service.annotations.redeployTime",
+            "value": "${time_static.cndi_time_static_argocd_admin_password.id}"
+          },
+          {
+            "name": "configs.secret.argocdServerAdminPasswordMtime",
+            "value": "${time_static.cndi_time_static_argocd_admin_password.id}"
+          },
+          {
+            "name": "server.deploymentAnnotations.configmap\\.reloader\\.stakater\\.com/reload",
+            "value": "argocd-cm"
+          }
+        ],
+        "set_sensitive": [
+          {
+            "name": "configs.secret.argocdServerAdminPassword",
+            "value": "${sensitive(sensitive(bcrypt(var.ARGOCD_ADMIN_PASSWORD, 10)))}"
+          }
+        ],
+        "timeout": 600,
+        "version": "7.7.16"
+      },
+      "cndi_helm_release_argocd_apps": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_helm_release_argocd_apps",
+            "uniqueId": "cndi_helm_release_argocd_apps"
+          }
+        },
+        "atomic": true,
+        "chart": "argocd-apps",
+        "create_namespace": true,
+        "depends_on": [
+          "helm_release.cndi_helm_release_argocd",
+          "aws_eks_node_group.cndi_aws_eks_managed_node_group_0",
+          "kubernetes_secret.cndi_kubernetes_secret_argocd_private_repo"
+        ],
+        "name": "root-argo-app",
+        "namespace": "argocd",
+        "repository": "https://argoproj.github.io/argo-helm",
+        "timeout": 600,
+        "values": [
+          "${yamlencode({\"applications\" = [{\"name\" = \"root-application\", \"namespace\" = \"argocd\", \"project\" = \"default\", \"finalizers\" = [\"resources-finalizer.argocd.argoproj.io\"], \"source\" = {\"repoURL\" = var.GIT_REPO, \"path\" = \"cndi/cluster_manifests\", \"targetRevision\" = \"HEAD\", \"directory\" = {\"recurse\" = true}}, \"destination\" = {\"server\" = \"https://kubernetes.default.svc\", \"namespace\" = \"argocd\"}, \"syncPolicy\" = {\"automated\" = {\"prune\" = true, \"selfHeal\" = true}, \"syncOptions\" = [\"CreateNamespace=true\"]}}]})}"
+        ],
+        "version": "1.4.1"
+      },
+      "cndi_helm_release_sealed_secrets": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_helm_release_sealed_secrets",
+            "uniqueId": "cndi_helm_release_sealed_secrets"
+          }
+        },
+        "atomic": true,
+        "chart": "sealed-secrets",
+        "depends_on": [
+          "module.cndi_aws_eks_module",
+          "kubernetes_secret.cndi_kubernetes_secret_sealed_secrets_key",
+          "aws_eks_node_group.cndi_aws_eks_managed_node_group_0"
+        ],
+        "name": "sealed-secrets",
+        "namespace": "kube-system",
+        "repository": "https://bitnami-labs.github.io/sealed-secrets",
+        "timeout": 300,
+        "version": "2.17.0"
+      }
+    },
+    "kubernetes_secret": {
+      "cndi_kubernetes_secret_argocd_private_repo": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_kubernetes_secret_argocd_private_repo",
+            "uniqueId": "cndi_kubernetes_secret_argocd_private_repo"
+          }
+        },
+        "data": {
+          "password": "${var.GIT_TOKEN}",
+          "type": "git",
+          "url": "${var.GIT_REPO}",
+          "username": "${var.GIT_USERNAME}"
+        },
+        "depends_on": [
+          "aws_eks_node_group.cndi_aws_eks_managed_node_group_0",
+          "helm_release.cndi_helm_release_argocd"
+        ],
+        "metadata": {
+          "labels": {
+            "argocd.argoproj.io/secret-type": "repository"
+          },
+          "name": "private-repo",
+          "namespace": "argocd"
+        }
+      },
+      "cndi_kubernetes_secret_sealed_secrets_key": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_kubernetes_secret_sealed_secrets_key",
+            "uniqueId": "cndi_kubernetes_secret_sealed_secrets_key"
+          }
+        },
+        "data": {
+          "tls.crt": "${var.SEALED_SECRETS_PUBLIC_KEY}",
+          "tls.key": "${var.SEALED_SECRETS_PRIVATE_KEY}"
+        },
+        "depends_on": [
+          "module.cndi_aws_eks_module",
+          "aws_eks_node_group.cndi_aws_eks_managed_node_group_0"
+        ],
+        "metadata": {
+          "labels": {
+            "sealedsecrets.bitnami.com/sealed-secrets-key": "active"
+          },
+          "name": "sealed-secrets-key",
+          "namespace": "kube-system"
+        },
+        "type": "kubernetes.io/tls"
+      }
+    },
+    "kubernetes_storage_class": {
+      "cndi_kubernetes_storage_class_ebs": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_kubernetes_storage_class_ebs",
+            "uniqueId": "cndi_kubernetes_storage_class_ebs"
+          }
+        },
+        "allow_volume_expansion": true,
+        "metadata": {
+          "annotations": {
+            "storageclass.kubernetes.io/is-default-class": "true"
+          },
+          "name": "rwo"
+        },
+        "parameters": {
+          "fsType": "ext4",
+          "type": "gp3"
+        },
+        "reclaim_policy": "Delete",
+        "storage_provisioner": "ebs.csi.aws.com",
+        "volume_binding_mode": "WaitForFirstConsumer"
+      },
+      "cndi_kubernetes_storage_class_efs": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_kubernetes_storage_class_efs",
+            "uniqueId": "cndi_kubernetes_storage_class_efs"
+          }
+        },
+        "allow_volume_expansion": true,
+        "metadata": {
+          "annotations": {
+            "storageclass.kubernetes.io/is-default-class": "false"
+          },
+          "name": "rwm"
+        },
+        "parameters": {
+          "directoryPerms": "700",
+          "fileSystemId": "${aws_efs_file_system.cndi_aws_efs_file_system.id}",
+          "gidRangeEnd": "2000",
+          "gidRangeStart": "1000",
+          "provisioningMode": "efs-ap"
+        },
+        "reclaim_policy": "Delete",
+        "storage_provisioner": "efs.csi.aws.com",
+        "volume_binding_mode": "WaitForFirstConsumer"
+      }
+    },
+    "random_password": {
+      "cndi_join_token": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_join_token",
+            "uniqueId": "cndi_join_token"
+          }
+        },
+        "length": 32,
+        "special": false,
+        "upper": false
+      }
+    },
+    "time_static": {
+      "cndi_time_static_argocd_admin_password": {
+        "//": {
+          "metadata": {
+            "path": "./cndi_time_static_argocd_admin_password",
+            "uniqueId": "cndi_time_static_argocd_admin_password"
+          }
+        },
+        "triggers": {
+          "argocdAdminPassword": "${sensitive(var.ARGOCD_ADMIN_PASSWORD)}"
+        }
+      }
+    }
+  },
+  "terraform": {
+    "required_providers": {
+      "aws": {
+        "source": "aws",
+        "version": "5.91.0"
+      },
+      "helm": {
+        "source": "helm",
+        "version": "2.17.0"
+      },
+      "kubernetes": {
+        "source": "kubernetes",
+        "version": "2.36.0"
+      },
+      "random": {
+        "source": "hashicorp/random",
+        "version": "3.7.1"
+      },
+      "time": {
+        "source": "hashicorp/time",
+        "version": "0.13.0"
+      },
+      "tls": {
+        "source": "hashicorp/tls",
+        "version": "4.0.6"
+      }
+    }
+  },
+  "variable": {
+    "ARGOCD_ADMIN_PASSWORD": {
+      "description": "password for accessing the argo ui",
+      "type": "string"
+    },
+    "GIT_REPO": {
+      "description": "repository URL to access",
+      "type": "string"
+    },
+    "GIT_TOKEN": {
+      "description": "password for accessing cluster repository",
+      "type": "string"
+    },
+    "GIT_USERNAME": {
+      "description": "username for accessing cluster repository",
+      "type": "string"
+    },
+    "SEALED_SECRETS_PRIVATE_KEY": {
+      "description": "private key for decrypting sealed secrets",
+      "type": "string"
+    },
+    "SEALED_SECRETS_PUBLIC_KEY": {
+      "description": "public key for encrypting sealed secrets",
+      "type": "string"
+    },
+    "SSH_PUBLIC_KEY": {
+      "description": "public key for accessing cluster nodes",
+      "type": "string"
+    }
+  }
+}
