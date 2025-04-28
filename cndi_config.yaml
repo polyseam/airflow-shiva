@@ -151,6 +151,17 @@ cluster_manifests:
     kind: Namespace
     metadata:
       name: cnpg-system
+
+  airflow-image-pull-secret:
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: airflow-image-pull-secret
+      namespace: airflow
+    type: kubernetes.io/dockerconfigjson
+    stringData:
+      .dockerconfigjson: $cndi_on_ow.seal_secret_from_env_var(DOCKER_CONFIG_JSON)
+
 applications:
   cnpg:
     targetRevision: 0.23.0
@@ -160,12 +171,19 @@ applications:
     syncPolicy:
       syncOptions:
         - ServerSideApply=true
+        
   airflow:
     targetRevision: 1.11.0
     destinationNamespace: airflow
     repoURL: 'https://airflow.apache.org'
     chart: airflow
     values:
+      registry:
+        secretName: airflow-image-pull-secret
+      images:
+        airflow:
+          repository: 'ghcr.io/polyseam/ez-af-shiva'
+          tag: v1.0.0
       executor: LocalKubernetesExecutor
       data:
         metadataSecretName: postgresql-connection-string-secret

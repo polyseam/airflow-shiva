@@ -13,6 +13,12 @@ spec:
     helm:
       version: v3
       values: |
+        registry:
+          secretName: airflow-image-pull-secret
+        images:
+          airflow:
+            repository: ghcr.io/polyseam/ez-af-shiva
+            tag: v1.0.0
         executor: LocalKubernetesExecutor
         data:
           metadataSecretName: postgresql-connection-string-secret

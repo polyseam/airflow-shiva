@@ -5,5 +5,6 @@
   "airflow-fernet-key-secret": "344c7f3920e0ebb7a2492f1276556c00bc22c814c52b05fe37408c9d8140b477",
   "airflow-webserver-key-secret": "8d68ff06ce27aa0625bd19334f9ac3eccfee29811b6fbddf9d3e0e4825dd1a90",
   "cnpg-cluster-superuser-auth-secret": "054840fbb8b16727605528077c0cd0b2487e90a32d2eb8ba866023b4937463dd",
-  "cnpg-database-user-auth-secret": "431caa7f2266b2cc4fb6d53b77f5409e6b9210998051164ce13f9fa6d0610085"
+  "cnpg-database-user-auth-secret": "431caa7f2266b2cc4fb6d53b77f5409e6b9210998051164ce13f9fa6d0610085",
+  "airflow-image-pull-secret": "054e24e5aaf24ddb6c72e9ebcceebd87254af1f5187beb6808fc78b5b9378cd8"
 }
